@@ -1,6 +1,9 @@
 * 2013-08-16 support offset to pointer(memory object) by runtime.
 * 2013-08-16 change behaviors of openclLaunchGrid, parameters are passed by values.
+
     
+i.e. in the example/launcher.c :
+
     int* memValue;
     int hostValue[4];
     int i;
@@ -11,3 +14,11 @@
     for(i=0; i<4; ++i){
         printf("mem[%d]=%x\n",i,hostValue[i]);
     }
+
+
+the result would show out four line of the same value.
+
+    mem[0]=21004
+    mem[1]=21004
+    mem[2]=21004
+    mem[3]=21004
