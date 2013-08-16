@@ -4,7 +4,107 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <string.h>
+#include "utils/vector.h"
 #include "opencl_runtime.h"
+typedef struct MemObjRecord{
+   void* start;
+   size_t len;
+}MemObjRecord;
+
+static Vector* memObjList;
+
+static Vector* mem_obj_list_get();
+static void mem_obj_list_clear();
+static void mem_obj_list_remove(void* key);
+static MemObjRecord* mem_obj_list_get_hit(void* key);
+
+static MemObjRecord* mem_obj_new(void* s,size_t l);
+
+static Vector* mem_obj_list_get(){
+   if(memObjList == NULL){
+      memObjList = vector_create(0);
+   }
+   return memObjList;
+}
+
+static void mem_obj_delete(MemObjRecord* o){
+   if(o != NULL){
+      clReleaseMemObject((cl_mem)o->start);
+      free(o);
+   }
+}
+
+static void mem_obj_list_clear(){
+    Vector* vec;
+    vec = mem_obj_list_get();
+    vector_foreach(vec,(void(*)(void*))mem_obj_delete);
+    vector_clear(vec);
+}
+
+static void mem_obj_list_remove(void* key){
+    Vector* vec;
+    int i,size;
+    vec = mem_obj_list_get();
+    size = vector_size(vec);
+    for(i=0; i<size; ++i){
+       MemObjRecord* o = (MemObjRecord*)vector_at(vec,i);
+       if(o->start == key){
+          break;
+       }
+    }
+    if(i < size){
+       vector_erase(vec,i);
+    }
+}
+
+static MemObjRecord* mem_obj_list_get_hit(void* key){
+    Vector* vec;
+    int i,size;
+    vec = mem_obj_list_get();
+    size = vector_size(vec);
+    for(i=0; i<size; ++i){
+       MemObjRecord* o = (MemObjRecord*)vector_at(vec,i);
+       if((size_t)key >=((size_t)o->start) && 
+            (size_t)key <((size_t)o->start)+o->len){
+          return o;
+       }
+    }
+    return NULL;
+}
+
+static MemObjRecord* mem_obj_new(void* s,size_t l){
+   MemObjRecord* ret;
+   ret = (MemObjRecord*)malloc(sizeof(MemObjRecord));
+   ret->start = s;
+   ret->len = l;
+   return ret;
+}
+
+static int mem_obj_CL_INVALID_MEM_OBJECT_handler(int _err,const void* dst,void** ptr){
+   if(_err == CL_INVALID_MEM_OBJECT){
+      MemObjRecord* o = mem_obj_list_get_hit((void*)dst);
+      size_t offset = ((size_t)dst) - (size_t)o->start;
+      void* shiftPtr;
+      openclShiftPointer(&shiftPtr,o->start,offset);
+      *ptr = shiftPtr;
+      return 1; //handled
+   }    
+   return 0;
+}
+
+static int mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(
+   int _err,const void* dst,void** ptr,size_t* r_offset
+){
+   if(_err == CL_INVALID_MEM_OBJECT){
+      MemObjRecord* o = mem_obj_list_get_hit((void*)dst);
+      size_t offset = ((size_t)dst) - (size_t)o->start;
+      *ptr = o->start;
+      *r_offset = offset;
+      return 1; //handled
+   }    
+   return 0;
+}
+
 static void printLastError(int _err)
 {
    switch(_err)
@@ -147,8 +247,8 @@ static void OMPCLCreateContext(cl_context* ctx,cl_device_id devid)
          }
    }
 #endif
-}   
-                                                                                                                                                                                                                                                                                                        
+}
+
 static void OMPCLInit(
                 cl_device_type type,
                 cl_platform_id* platformid,
@@ -300,13 +400,12 @@ static int openclCheckInited(){
    return 1;
 }
 
-enum openclMemcpyKind;
-
 int openclMalloc(void** ptr,size_t size){
     cl_mem ret;
     int err;
     if(!openclCheckInited()) return -1;
     ret = clCreateBuffer(openclRuntime.ompclContext, CL_MEM_READ_WRITE, size, NULL,&err);
+    vector_push_back(mem_obj_list_get(),mem_obj_new((void*)ret,size));
     *ptr = (void*)ret;
     return err;
 }
@@ -321,11 +420,26 @@ int openclMemcpy(void* dst, const void* src, size_t size, openclMemcpyKind kind)
       }
       case openclMemcpyHostToDevice:
       {
-         return clEnqueueWriteBuffer(openclRuntime.ompclCommandQueue,(cl_mem)dst,CL_TRUE,0,size,src,0,0,0);
+          cl_int err;
+          void* dstPtr;
+          size_t offset;
+          err = clEnqueueWriteBuffer(openclRuntime.ompclCommandQueue,(cl_mem)dst,CL_TRUE,0,size,src,0,0,0);
+          if(mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(err,dst,&dstPtr,&offset)){
+             err = clEnqueueWriteBuffer(openclRuntime.ompclCommandQueue,(cl_mem)dstPtr,CL_TRUE,offset,size,src,0,0,0);
+             clReleaseMemObject((cl_mem)dstPtr);
+          }
+          return err;
       }
       case openclMemcpyDeviceToHost:
       {
-         return clEnqueueReadBuffer(openclRuntime.ompclCommandQueue,(cl_mem)src,CL_TRUE,0,size,dst,0,0,0);
+          cl_int err;
+          void* srcPtr;
+          size_t offset;
+          err = clEnqueueReadBuffer(openclRuntime.ompclCommandQueue,(cl_mem)src,CL_TRUE,0,size,dst,0,0,0);
+          if(mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(err,src,&srcPtr,&offset)){
+             err = clEnqueueReadBuffer(openclRuntime.ompclCommandQueue,(cl_mem)srcPtr,CL_TRUE,offset,size,dst,0,0,0);
+          }
+          return err;
       }
       case openclMemcpyHostToHost:
       {
@@ -334,7 +448,18 @@ int openclMemcpy(void* dst, const void* src, size_t size, openclMemcpyKind kind)
       }
       case openclMemcpyDeviceToDevice:
       {
-         return clEnqueueCopyBuffer(openclRuntime.ompclCommandQueue,(cl_mem)src,(cl_mem)dst,0,0,size,0,0,0);
+          cl_int err;
+          void* dstPtr;
+          void* srcPtr; 
+          size_t dstOffset;
+          size_t srcOffset;
+          err = clEnqueueCopyBuffer(openclRuntime.ompclCommandQueue,(cl_mem)src,(cl_mem)dst,0,0,size,0,0,0);
+          if(err == CL_INVALID_MEM_OBJECT){
+             mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(err,src,&srcPtr,&srcOffset);
+             mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(err,dst,&dstPtr,&dstOffset);
+             err = clEnqueueCopyBuffer(openclRuntime.ompclCommandQueue,(cl_mem)srcPtr,(cl_mem)dstPtr,srcOffset,dstOffset,size,0,0,0);
+          }
+          return err;
       }
    }
 
@@ -380,9 +505,14 @@ int openclConfigureCall(size_t localdim[3],size_t globaldim[3]){
    return 0;
 }
 
+static void vec_release_list_releaseMemObj(void* o){
+   clReleaseMemObject((cl_mem)o);
+}
+
 static void openclLaunchKernelObject(cl_kernel kernel,const char* kernelName){
    int argCfg;
    int err;
+   Vector* vecReleaseList = vector_create(0);
    for(argCfg=0; argCfg<openclRuntime.setupArg.argIdx; ++argCfg){
       err = clSetKernelArg(
            kernel,
@@ -396,8 +526,26 @@ static void openclLaunchKernelObject(cl_kernel kernel,const char* kernelName){
           *(void**)openclRuntime.setupArg.argList[argCfg]
       );*/
       if(err != 0){
-         fprintf(stderr,"Error while setup kernel(`%s`) argument index %d\n",kernelName,argCfg);
-         printLastError(err);
+         if(err == CL_INVALID_MEM_OBJECT){
+             void* ptr;
+             
+             mem_obj_CL_INVALID_MEM_OBJECT_handler(
+                 err,
+                 *((void**)openclRuntime.setupArg.argList[argCfg]),
+                 &ptr
+             );
+             vector_push_back(vecReleaseList,ptr);
+             err = clSetKernelArg(
+               kernel,
+               openclRuntime.setupArg.argIdxes[argCfg],
+               openclRuntime.setupArg.argSize[argCfg],
+               &ptr
+             );
+         }
+         if(err != 0){
+            fprintf(stderr,"uncaught exception: Error while setup kernel(`%s`) argument index %d \n",kernelName,argCfg);
+            printLastError(err);
+         }             
       }
    }
    for(argCfg=0; argCfg<openclRuntime.setupArg.argIdx; ++argCfg){
@@ -418,7 +566,11 @@ static void openclLaunchKernelObject(cl_kernel kernel,const char* kernelName){
        fprintf(stderr,"Error while launch kernel `%s`\n",kernelName);
        printLastError(err);
    }
-  
+   if(!vector_empty(vecReleaseList))
+   {
+      vector_foreach(vecReleaseList,vec_release_list_releaseMemObj);
+      vector_delete(vecReleaseList);
+   }
 }
 void openclLaunch(const char* kernelName){
    int err;
