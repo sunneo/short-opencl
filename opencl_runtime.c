@@ -642,7 +642,7 @@ void openclLaunchGrid(const char* kernelName,size_t localdim[3],size_t globaldim
    va_start(va,globaldim);
    for(i=0; i<argCnt; ++i){
       arg = va_arg(va,pointer);
-      openclSetArgument(arg,sizeof(pointer),i);
+      openclSetArgument(&arg,sizeof(pointer),i);
    }
    va_end(va);
    openclConfigureCall(localdim,globaldim);

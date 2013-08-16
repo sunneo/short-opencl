@@ -15,7 +15,9 @@ int main(){
    /// allocate a bundle of buffer.
    openclMalloc((void**)&memValue,sizeof(int)*4);
    /// get a shifted pointer (subbuffer) from an allocated buffer.
-   openclShiftPointer((void**)&offsetMemValue,memValue,4);
+   ///   openclShiftPointer((void**)&offsetMemValue,memValue,4);
+   ///   offset of a pointer is now supported by our runtime library(2013-08-16), sunneo.
+   ///   offsetMemValue = memValue + 1;
    /// user can invoke a kernel by configure call, setargument, and then launch it.
 /*   
    openclConfigureCall( localdim, globaldim);
@@ -26,7 +28,7 @@ int main(){
    openclLaunch("kernelFnc");
 */
    /// alternatively, you may try to invoke a kernel in line like cuda-runtime style
-   openclLaunchGrid("kernelFnc",localdim,globaldim,&memValue,&memValue,&offsetMemValue,&offsetValue);
+   openclLaunchGrid("kernelFnc",localdim,globaldim,memValue,memValue,memValue+1,offsetValue);
    /// wait for kernel finished.
    openclThreadSynchronize();
    /// copy data from allocated one to the host one.
