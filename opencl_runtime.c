@@ -426,7 +426,6 @@ int openclMemcpy(void* dst, const void* src, size_t size, openclMemcpyKind kind)
           err = clEnqueueWriteBuffer(openclRuntime.ompclCommandQueue,(cl_mem)dst,CL_TRUE,0,size,src,0,0,0);
           if(mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(err,dst,&dstPtr,&offset)){
              err = clEnqueueWriteBuffer(openclRuntime.ompclCommandQueue,(cl_mem)dstPtr,CL_TRUE,offset,size,src,0,0,0);
-             clReleaseMemObject((cl_mem)dstPtr);
           }
           return err;
       }
