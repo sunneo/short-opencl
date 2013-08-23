@@ -37,6 +37,14 @@ int  openclMalloc(void** ptr,size_t size);
  * @param offset shift amount from the srcPtr.
  */
 int  openclShiftPointer(void** ptr,const void* srcPtr, size_t offset);
+
+/**
+ * set a block of devicePointer to a value, just like memset in string.h
+ * @param dstPtr pointer to block of memory object
+ * @param bytevalue 
+ * @param size size of block
+ */
+int  openclMemset(void* dstPtr,int bytevalue, size_t size);
 /**
  * copy memory between pointer and memory object.
  * kind: openclMemcpyDeviceToHost 
@@ -97,7 +105,7 @@ void openclCtxPopCurrent(openclCtx* c);
 void openclInitFromSource2(openclCtx c,const char* src);
 void openclInitFromFile2(openclCtx c,const char* path);
 int  openclMalloc2(openclCtx c,void** ptr,size_t size);
-int  openclShiftPointer2(openclCtx c,void** ptr,const void* srcPtr, size_t offset);
+int  openclMemset2(openclCtx c,void* dst,int bytevalue, size_t size);
 int  openclMemcpy2(openclCtx c,void* dst, const void* src, size_t size, openclMemcpyKind kind);
 int  openclFree2(openclCtx c,void* ptr);
 int  openclThreadSynchronize2(openclCtx c);

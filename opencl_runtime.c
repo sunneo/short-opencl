@@ -508,6 +508,28 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
    }
 
 }
+int  openclMemset(void* dstPtr,int bytevalue, size_t size){
+   return openclMemset2((openclCtx)openclRuntimeCurrent,dstPtr,bytevalue,size);
+}
+int  openclMemset2(openclCtx openclctx,void* dstPtr,int bytevalue, size_t size){
+    cl_int err;
+    void* dstPtrReal = dstPtr;
+    size_t dstOffset = 0;
+    char bytes64k[65536];
+    memset(bytes64k,bytevalue,65536);
+    mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,dstPtr,&dstPtrReal,&dstOffset);
+    while(size > 65536){
+       err = clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dstPtrReal,CL_FALSE,dstOffset,65536,bytes64k,0,0,0);
+       if(err != 0){
+          return err;
+       }
+       size -= 65536;
+       dstOffset += 65536;
+    }
+    err = clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dstPtrReal,CL_TRUE,dstOffset,size,bytes64k,0,0,0);      
+    return err;
+}
+
 int openclFree(void* ptr){
    return openclFree2((openclCtx)openclRuntimeCurrent,ptr);
 }
