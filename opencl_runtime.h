@@ -88,11 +88,12 @@ void openclLaunch(const char* kernel);
 void openclLaunchGrid(const char* kernel,size_t localdim[3],size_t globaldim[3],...);
 
 typedef void *openclCtx;
-openclCtx openclCreateCtx();
-void openclDestroyCtx(openclCtx c);
-void openclPushCurrent(openclCtx c);
-void openclPeekCurrent(openclCtx* c);
-void openclPopCurrent(openclCtx* c);
+openclCtx openclCtxCreate();
+openclCtx openclCtxCreateFrom(openclCtx c);
+void openclCtxDestroy(openclCtx c);
+void openclCtxPushCurrent(openclCtx c);
+void openclCtxPeekCurrent(openclCtx* c);
+void openclCtxPopCurrent(openclCtx* c);
 void openclInitFromSource2(openclCtx c,const char* src);
 void openclInitFromFile2(openclCtx c,const char* path);
 int  openclMalloc2(openclCtx c,void** ptr,size_t size);

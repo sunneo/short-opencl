@@ -16,7 +16,9 @@ __kernel void getKernelPtrAddr(size_t __global* output,size_t __global* input){ 
    size_t ret = 0;
    size_t *paddr;
    if(!ctx){
-      ctx = openclCreateCtx();
+      openclCtx current;
+      openclCtxPopCurrent(&current);
+      ctx = openclCtxCreateFrom(current);
       openclInitFromSource2(ctx,__kernel_ptr_getter);
    }
    openclMalloc2(ctx,(void**)&paddr,sizeof(size_t));

@@ -10,21 +10,44 @@ typedef struct MemObjRecord{
    void* start;
    size_t len;
 }MemObjRecord;
+struct OpenCLRuntimeAPI;
+struct OpenCLRuntimeAPI{
+  char* launchFnc;
+  size_t workdim;
+  size_t localdim[3];
+  size_t globaldim[3];
+  struct {
+     void* argList[ 256 ];
+     size_t argSize[ 256 ];
+     size_t argIdxes[ 256 ];
+     size_t argIdx;
+  } setupArg;
+  cl_platform_id ompclPlatformID;
+  cl_device_id ompclDeviceID;
+  cl_context ompclContext;
+  cl_command_queue ompclCommandQueue;
+  cl_program ompclProgram;
+  Vector* memObjList;
+  int ompclCompiled; 
+  int inited;
+};
 
+typedef struct OpenCLRuntimeAPI OpenCLRuntimeAPI;
 static Vector* memObjList;
 
-static Vector* mem_obj_list_get();
-static void mem_obj_list_clear();
-static void mem_obj_list_remove(void* key);
-static MemObjRecord* mem_obj_list_get_hit(void* key);
+static Vector* mem_obj_list_get(OpenCLRuntimeAPI* api);
+static void mem_obj_list_clear(OpenCLRuntimeAPI* api);
+static void mem_obj_list_remove(OpenCLRuntimeAPI* api,void* key);
+static MemObjRecord* mem_obj_list_get_hit(OpenCLRuntimeAPI* api,void* key);
 
 static MemObjRecord* mem_obj_new(void* s,size_t l);
 
-static Vector* mem_obj_list_get(){
-   if(memObjList == NULL){
-      memObjList = vector_create(0);
+static Vector* mem_obj_list_get(OpenCLRuntimeAPI* api){
+   if(api->memObjList == NULL){
+      api->memObjList = vector_create(0);
    }
-   return memObjList;
+ 
+   return api->memObjList;
 }
 
 static void mem_obj_delete(MemObjRecord* o){
@@ -34,17 +57,20 @@ static void mem_obj_delete(MemObjRecord* o){
    }
 }
 
-static void mem_obj_list_clear(){
+static void mem_obj_list_clear(OpenCLRuntimeAPI* api){
     Vector* vec;
-    vec = mem_obj_list_get();
+    if(api == NULL){
+        return ;
+    }
+    vec = mem_obj_list_get(api); 
     vector_foreach(vec,(void(*)(void*))mem_obj_delete);
     vector_clear(vec);
 }
 
-static void mem_obj_list_remove(void* key){
+static void mem_obj_list_remove(OpenCLRuntimeAPI* api,void* key){
     Vector* vec;
     int i,size;
-    vec = mem_obj_list_get();
+    vec = mem_obj_list_get(api);
     size = vector_size(vec);
     for(i=0; i<size; ++i){
        MemObjRecord* o = (MemObjRecord*)vector_at(vec,i);
@@ -57,12 +83,14 @@ static void mem_obj_list_remove(void* key){
     }
 }
 
-static MemObjRecord* mem_obj_list_get_hit(void* key){
+static MemObjRecord* mem_obj_list_get_hit(OpenCLRuntimeAPI* api,void* key){
     Vector* vec;
     int i,size;
-    vec = mem_obj_list_get();
+    vec = mem_obj_list_get(api);
     size = vector_size(vec);
+
     for(i=0; i<size; ++i){
+
        MemObjRecord* o = (MemObjRecord*)vector_at(vec,i);
        if((size_t)key >=((size_t)o->start) && 
             (size_t)key <((size_t)o->start)+o->len){
@@ -80,9 +108,12 @@ static MemObjRecord* mem_obj_new(void* s,size_t l){
    return ret;
 }
 
-static int mem_obj_CL_INVALID_MEM_OBJECT_handler(int _err,const void* dst,void** ptr){
+static int mem_obj_CL_INVALID_MEM_OBJECT_handler(openclCtx openclctx,int _err,const void* dst,void** ptr){
    if(_err == CL_INVALID_MEM_OBJECT){
-      MemObjRecord* o = mem_obj_list_get_hit((void*)dst);
+      MemObjRecord* o = mem_obj_list_get_hit((OpenCLRuntimeAPI*)openclctx,(void*)dst);
+      if(o == NULL){
+         return 0;
+      }
       size_t offset = ((size_t)dst) - (size_t)o->start;
       void* shiftPtr;
       openclShiftPointer(&shiftPtr,o->start,offset);
@@ -93,10 +124,10 @@ static int mem_obj_CL_INVALID_MEM_OBJECT_handler(int _err,const void* dst,void**
 }
 
 static int mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(
-   int _err,const void* dst,void** ptr,size_t* r_offset
+   openclCtx openclctx,int _err,const void* dst,void** ptr,size_t* r_offset
 ){
    if(_err == CL_INVALID_MEM_OBJECT){
-      MemObjRecord* o = mem_obj_list_get_hit((void*)dst);
+      MemObjRecord* o = mem_obj_list_get_hit((OpenCLRuntimeAPI*)openclctx,(void*)dst);
       size_t offset = ((size_t)dst) - (size_t)o->start;
       *ptr = o->start;
       *r_offset = offset;
@@ -298,16 +329,25 @@ static void OMPCLInit(
 
    if(*compiled != 1){
       *compiled = 1;
-      OMPCLGetPlatformID(platformid,type);
+      if(!*platformid){
+         OMPCLGetPlatformID(platformid,type);
+      }
       //printf("after get platform id OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
-
+      if(!*devid){
          OMPCLGetDeviceID(devid,*platformid,type);
+      }
       //printf("after get dev id OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
+      if(!*ctx){
          OMPCLCreateContext(ctx,*devid);
+      }
       //printf("after get ctx OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
-      *program = OMPCLCompileProgram(srcCode,devid,*ctx);
+      if(!*program){
+         *program = OMPCLCompileProgram(srcCode,devid,*ctx);
+      }
       //printf("after get program OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
-      OMPCLCreateCommandQueue(cmdqueue,*ctx,*devid);
+      if(!*cmdqueue){
+         OMPCLCreateCommandQueue(cmdqueue,*ctx,*devid);
+      }
       //printf("after get cmdqueue OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
 
 
@@ -331,25 +371,6 @@ static void OMPCLCreateBuffer(cl_mem* mem,cl_context ctx,size_t size){
 }
 
 
-typedef struct OpenCLRuntimeAPI{
-  char* launchFnc;
-  size_t workdim;
-  size_t localdim[3];
-  size_t globaldim[3];
-  struct {
-     void* argList[ 256 ];
-     size_t argSize[ 256 ];
-     size_t argIdxes[ 256 ];
-     size_t argIdx;
-  } setupArg;
-  cl_platform_id ompclPlatformID;
-  cl_device_id ompclDeviceID;
-  cl_context ompclContext;
-  cl_command_queue ompclCommandQueue;
-  cl_program ompclProgram;
-  int ompclCompiled; 
-  int inited;
-}OpenCLRuntimeAPI;
 
 static OpenCLRuntimeAPI openclRuntime;
 static OpenCLRuntimeAPI* openclRuntimeCurrent = &openclRuntime;
@@ -359,6 +380,7 @@ static void openclRuntimeReleaseOnExit(){
       clReleaseCommandQueue(openclRuntimeCurrent->ompclCommandQueue);
       clReleaseContext(openclRuntimeCurrent->ompclContext);
       clReleaseProgram(openclRuntimeCurrent->ompclProgram);
+      mem_obj_list_clear(openclRuntimeCurrent);
       //clUnloadCompiler();
       openclRuntimeCurrent->inited = 0;
    }
@@ -379,6 +401,7 @@ void openclInitFromSource2(openclCtx openclctx,const char* src){
       &((OpenCLRuntimeAPI*)openclctx)->ompclCompiled 
    );
    atexit(openclRuntimeReleaseOnExit);
+   ((OpenCLRuntimeAPI*)openclctx)->memObjList = NULL;
    ((OpenCLRuntimeAPI*)openclctx)->inited = 1;
 }
 
@@ -431,7 +454,7 @@ int openclMalloc2(openclCtx openclctx,void** ptr,size_t size){
     int err;
     if(!openclCheckInited(openclctx)) return -1;
     ret = clCreateBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclContext, CL_MEM_READ_WRITE, size, NULL,&err);
-    vector_push_back(mem_obj_list_get(),mem_obj_new((void*)ret,size));
+    vector_push_back(mem_obj_list_get((OpenCLRuntimeAPI*)openclctx),mem_obj_new((void*)ret,size));
     *ptr = (void*)ret;
     return err;
 }
@@ -451,7 +474,7 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
           cl_int err;
           void* dstPtr;
           size_t offset;
-          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(CL_INVALID_MEM_OBJECT,dst,&dstPtr,&offset);
+          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,dst,&dstPtr,&offset);
           err = clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dst,CL_TRUE,0,size,src,0,0,0);
 
           return err;
@@ -461,7 +484,7 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
           cl_int err;
           void* srcPtr;
           size_t offset;
-          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(CL_INVALID_MEM_OBJECT,src,&srcPtr,&offset);
+          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,src,&srcPtr,&offset);
           err = clEnqueueReadBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)src,CL_TRUE,0,size,dst,0,0,0);
           return err;
       }
@@ -477,8 +500,8 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
           void* srcPtr; 
           size_t dstOffset;
           size_t srcOffset;
-          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(CL_INVALID_MEM_OBJECT,src,&srcPtr,&srcOffset);
-          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(CL_INVALID_MEM_OBJECT,dst,&dstPtr,&dstOffset);
+          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,src,&srcPtr,&srcOffset);
+          mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,dst,&dstPtr,&dstOffset);
           err = clEnqueueCopyBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)src,(cl_mem)dst,0,0,size,0,0,0);
           return err;
       }
@@ -491,6 +514,7 @@ int openclFree(void* ptr){
 
 int openclFree2(openclCtx openclctx,void* ptr){
    if(!openclCheckInited(openclctx)) return -1;
+   mem_obj_list_remove((OpenCLRuntimeAPI*)openclctx,ptr);
    return clReleaseMemObject((cl_mem)ptr);
 }
 int openclThreadSynchronize(){
@@ -559,14 +583,17 @@ static void openclLaunchKernelObject2(openclCtx openclctx,cl_kernel kernel,const
           *(void**)((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[argCfg]
       );*/
       if(err != 0){
+         fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler\n");
          if(err == CL_INVALID_MEM_OBJECT){
              void* ptr;
              
              mem_obj_CL_INVALID_MEM_OBJECT_handler(
+                 openclctx,
                  err,
                  *((void**)((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[argCfg]),
                  &ptr
              );
+             fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done\n");
              vector_push_back(vecReleaseList,ptr);
              err = clSetKernelArg(
                kernel,
@@ -578,7 +605,7 @@ static void openclLaunchKernelObject2(openclCtx openclctx,cl_kernel kernel,const
          if(err != 0){
             fprintf(stderr,"uncaught exception: Error while setup kernel(`%s`) argument index %d \n",kernelName,argCfg);
             printLastError(err);
-         }             
+         }
       }
    }
    for(argCfg=0; argCfg<((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx; ++argCfg){
@@ -615,6 +642,7 @@ void openclLaunch2(openclCtx openclctx,const char* kernelName){
    kernel = clCreateKernel(((OpenCLRuntimeAPI*)openclctx)->ompclProgram,kernelName,&err);
    if(err != 0){
       fprintf(stderr,"Error while create kernel %s\n",kernelName);
+      printLastError(err);
       return;
    }
    openclLaunchKernelObject2(openclctx,kernel,kernelName);
@@ -668,6 +696,7 @@ void openclLaunchGrid2(openclCtx openclctx,const char* kernelName,size_t localdi
    kernel = clCreateKernel(((OpenCLRuntimeAPI*)openclctx)->ompclProgram,kernelName,&err);
    if(err != 0){
       fprintf(stderr,"Error while create kernel %s\n",kernelName);
+      printLastError(err);
       return;
    }
    err = clGetKernelInfo(kernel,CL_KERNEL_NUM_ARGS,sizeof(argCnt),&argCnt,0);
@@ -714,14 +743,27 @@ void openclLaunchGrid(const char* kernelName,size_t localdim[3],size_t globaldim
    clReleaseKernel(kernel);
 }
 
-openclCtx openclCreateCtx(){
+openclCtx openclCtxCreate(){
    OpenCLRuntimeAPI* ret = (OpenCLRuntimeAPI*)malloc(sizeof(OpenCLRuntimeAPI));
    memset(ret,0,sizeof(OpenCLRuntimeAPI));
    return (openclCtx)ret;
 }
 
+openclCtx openclCtxCreateFrom(openclCtx c){
+   openclCtx ret = openclCtxCreate();
+   OpenCLRuntimeAPI* pc = (OpenCLRuntimeAPI*)c;
+   OpenCLRuntimeAPI* pret = (OpenCLRuntimeAPI*)ret;
+   memcpy(ret,c,sizeof(OpenCLRuntimeAPI));
+   pret->ompclProgram = 0;
+   pret->ompclCompiled = 0;
+   pret->inited = 0;
+   clRetainCommandQueue(pc->ompclCommandQueue);
+   clRetainContext(pc->ompclContext);
+   
+   return ret;
+}
 
-void openclDestroyCtx(openclCtx c){
+void openclCtxDestroy(openclCtx c){
    OpenCLRuntimeAPI* popenclRuntime;
    popenclRuntime = (OpenCLRuntimeAPI*)c;
    if(popenclRuntime->inited){
@@ -733,15 +775,15 @@ void openclDestroyCtx(openclCtx c){
    free(popenclRuntime);
 }
 
-void openclPushCurrent(openclCtx c){
+void openclCtxPushCurrent(openclCtx c){
    openclRuntimeCurrent = (OpenCLRuntimeAPI*)c;
 }
-void openclPopCurrent(openclCtx* c){
-   openclPeekCurrent(c);
+void openclCtxPopCurrent(openclCtx* c){
+   openclCtxPeekCurrent(c);
    openclRuntimeCurrent = &openclRuntime;
 }
 
-void openclPeekCurrent(openclCtx* c){
+void openclCtxPeekCurrent(openclCtx* c){
    *c = (openclCtx)openclRuntimeCurrent; 
 }
 
