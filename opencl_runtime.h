@@ -1,6 +1,7 @@
 #ifndef OPENCL_RUNTIME_H_
 #  define OPENCL_RUNTIME_H_ 1
 
+
 enum openclMemcpyKind{
    openclMemcpyHostToDevice,
    openclMemcpyDeviceToHost,
@@ -14,6 +15,7 @@ typedef enum openclMemcpyKind openclMemcpyKind;
  * @param src a pointer points to source.
  */
 void openclInitFromSource(const char* src);
+
 /**
  * initialize opencl runtime from a path to kernel program.
  * @param src path to kernel source.
@@ -84,4 +86,22 @@ void openclLaunch(const char* kernel);
  * 
  */
 void openclLaunchGrid(const char* kernel,size_t localdim[3],size_t globaldim[3],...);
+
+typedef void *openclCtx;
+openclCtx openclCreateCtx();
+void openclDestroyCtx(openclCtx c);
+void openclPushCurrent(openclCtx c);
+void openclPeekCurrent(openclCtx* c);
+void openclPopCurrent(openclCtx* c);
+void openclInitFromSource2(openclCtx c,const char* src);
+void openclInitFromFile2(openclCtx c,const char* path);
+int  openclMalloc2(openclCtx c,void** ptr,size_t size);
+int  openclShiftPointer2(openclCtx c,void** ptr,const void* srcPtr, size_t offset);
+int  openclMemcpy2(openclCtx c,void* dst, const void* src, size_t size, openclMemcpyKind kind);
+int  openclFree2(openclCtx c,void* ptr);
+int  openclThreadSynchronize2(openclCtx c);
+void openclSetArgument2(openclCtx c,void* arg, size_t size, size_t idx);
+int  openclConfigureCall2(openclCtx c,size_t localdim[3],size_t globaldim[3]);
+void openclLaunch2(openclCtx c,const char* kernel);
+void openclLaunchGrid2(openclCtx c,const char* kernel,size_t localdim[3],size_t globaldim[3],...);
 #endif

@@ -1,34 +1,54 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "opencl_runtime.h"
+
+
+
+static size_t getKernelPtrAddr(void* clmemaddr){
+   static openclCtx ctx;
+   const static char* __kernel_ptr_getter="\n\
+__kernel void getKernelPtrAddr(size_t __global* output,size_t __global* input){ \n\
+   *output = (size_t)input;\n\
+}\n\
+";
+   int localdim[3]={1,1,1};
+   int globaldim[3]={1,1,1};
+   size_t ret = 0;
+   size_t *paddr;
+   if(!ctx){
+      ctx = openclCreateCtx();
+      openclInitFromSource2(ctx,__kernel_ptr_getter);
+   }
+   openclMalloc2(ctx,(void**)&paddr,sizeof(size_t));
+   openclLaunchGrid2(ctx,"getKernelPtrAddr",localdim,globaldim,paddr,clmemaddr);
+   openclMemcpy2(ctx,&ret,paddr,sizeof(size_t),openclMemcpyDeviceToHost);
+   openclFree2(ctx,paddr);
+   return ret;
+}
+typedef struct StructWithoutPointerButAddress{
+   size_t addr0;
+   size_t addr1;
+}StructWithoutPointerButAddress;
+
+
 int main(){
    unsigned* memValue;
    unsigned* offsetMemValue;
+   StructWithoutPointerButAddress* strPtr;
    int offsetValue = 1;
    int hostValue[3];
    int localdim[3]={256,1,1};
    int globaldim[3]={1024,1,1};
    int i;
-   /// initialize program with a source code.
-   /// user can use openclInitFromSource(SourceString) as an alternation.
+   size_t kerneladdr_memvalue;
    openclInitFromFile("kernel.cl"); 
    /// allocate a bundle of buffer.
    openclMalloc((void**)&memValue,sizeof(int)*4);
-   /// get a shifted pointer (subbuffer) from an allocated buffer.
-   ///   openclShiftPointer((void**)&offsetMemValue,memValue,4);
-   ///   offset of a pointer is now supported by our runtime library(2013-08-16), sunneo.
-   ///   offsetMemValue = memValue + 1;
-   /// user can invoke a kernel by configure call, setargument, and then launch it.
-/*   
-   openclConfigureCall( localdim, globaldim);
-   openclSetArgument(&memValue,sizeof(unsigned*),0);
-   openclSetArgument(&memValue,sizeof(unsigned*),1);
-   openclSetArgument(&offsetMemValue,sizeof(unsigned*),2);
-   openclSetArgument(&offsetValue,sizeof(int),3);
-   openclLaunch("kernelFnc");
-*/
+   openclMalloc((void**)&strPtr,sizeof(StructWithoutPointerButAddress));
+   kerneladdr_memvalue = getKernelPtrAddr(memValue);
+   openclMemcpy((void*)&strPtr->addr0,&kerneladdr_memvalue,sizeof(size_t),openclMemcpyHostToDevice);
    /// alternatively, you may try to invoke a kernel in line like cuda-runtime style
-   openclLaunchGrid("kernelFnc",localdim,globaldim,memValue,memValue,memValue+1,offsetValue);
+   openclLaunchGrid("kernelFnc",localdim,globaldim,memValue,memValue,memValue,offsetValue,strPtr);
    /// wait for kernel finished.
    openclThreadSynchronize();
    /// copy data from allocated one to the host one.
