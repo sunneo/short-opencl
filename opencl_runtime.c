@@ -509,15 +509,16 @@ void openclInitFromSource2(openclCtx openclctx,const char* src){
    int i,j;
    if(!openclDriverInfosPtr){
       openclInitialDriverInfos(&openclDriverInfosInstance);
-   }
-   if(!openclGetDeviceByType(CL_DEVICE_TYPE_GPU,(OpenCLRuntimeAPI*)openclctx)){
-      fprintf(stderr,"No capable GPU found, try CPU\n");
-      if(!openclGetDeviceByType(CL_DEVICE_TYPE_CPU,(OpenCLRuntimeAPI*)openclctx)){
-          fprintf(stderr,"No capable CPU found, try ALL\n");    
-          if(!openclGetDeviceByType(CL_DEVICE_TYPE_ALL,(OpenCLRuntimeAPI*)openclctx)){
-             fprintf(stderr,"No capable Device found, uncaught error, exit\n");    
-             exit(0);
-          }
+      // initialize context, which is gpu default.
+      if(!openclGetDeviceByType(CL_DEVICE_TYPE_GPU,(OpenCLRuntimeAPI*)openclctx)){
+         fprintf(stderr,"No capable GPU found, try CPU\n");
+         if(!openclGetDeviceByType(CL_DEVICE_TYPE_CPU,(OpenCLRuntimeAPI*)openclctx)){
+             fprintf(stderr,"No capable CPU found, try ALL\n");    
+             if(!openclGetDeviceByType(CL_DEVICE_TYPE_ALL,(OpenCLRuntimeAPI*)openclctx)){
+                fprintf(stderr,"No capable Device found, uncaught error, exit\n");    
+                exit(0);
+             }
+         }
       }
    }
    OMPCLInit(
@@ -924,6 +925,8 @@ void openclCtxDestroy(openclCtx c){
       clReleaseContext(popenclRuntime->ompclContext);
       clReleaseProgram(popenclRuntime->ompclProgram);
       popenclRuntime->inited = 0;
+      mem_obj_list_clear(popenclRuntime);
+      free(popenclRuntime->memObjList);
    }
    free(popenclRuntime);
 }
@@ -978,5 +981,31 @@ void openclGetDeviceProperties2(openclCtx openclctx,openclDeviceInfo* info){
    unsigned platformidx = ((OpenCLRuntimeAPI*)openclctx)->platformidx; 
    unsigned deviceidx = ((OpenCLRuntimeAPI*)openclctx)->deviceidx;
    memcpy(info, &openclDriverInfosPtr->platform_infos[platformidx].deviceInfos[deviceidx],sizeof(openclDeviceInfo));
+}
+
+void openclSetDevice(int platform,int device){
+   openclSetDevice2((openclCtx)openclRuntimeCurrent,platform,device);
+}
+
+void openclSetDevice2(openclCtx c,int platform,int device){
+   OpenCLRuntimeAPI* popenclRuntime;
+   popenclRuntime = (OpenCLRuntimeAPI*)c;
+   if(platform == popenclRuntime->platformidx && device == popenclRuntime->deviceidx){
+      return;
+   }   
+   if(popenclRuntime->inited){
+      clReleaseCommandQueue(popenclRuntime->ompclCommandQueue);
+      popenclRuntime->ompclCommandQueue = 0;
+      clReleaseContext(popenclRuntime->ompclContext);
+      popenclRuntime->ompclContext = 0;
+      clReleaseProgram(popenclRuntime->ompclProgram);
+      popenclRuntime->ompclProgram = 0;
+      popenclRuntime->inited = 0;
+      mem_obj_list_clear(popenclRuntime);
+   }
+   popenclRuntime->platformidx = platform;
+   popenclRuntime->deviceidx = device;
+   popenclRuntime->ompclPlatformID = openclDriverInfosPtr->platform_infos[platform].platformid;
+   popenclRuntime->ompclDeviceID =  openclDriverInfosPtr->platform_infos[platform].deviceInfos[device].deviceid;
 }
 

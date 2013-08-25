@@ -144,13 +144,81 @@ void openclLaunch(const char* kernel);
  */
 void openclLaunchGrid(const char* kernel,size_t localdim[3],size_t globaldim[3],...);
 
+/**
+ * get device count of current context
+ * default is in GPU type
+ * it would return the device count in the first platform default.
+ * @param count device count to return.
+ */
+void openclGetDeviceCount(int* count);
+/**
+ * get total count of platforms.
+ * @param count platform count to return.
+ */
+void openclGetPlatformCount(int* count);
+/**
+ * get the platform which is being using.
+ * @param platform platform index to get. 
+ */
+void openclGetPlatform(int* platform);
+/**
+ * get the device being using.
+ * @param device pointer to a return value. 
+ */
+void openclGetDevice(int* device);
+/**
+ * get properties of the current platform
+ * @param info pointer to platform info structure.
+ */
+void openclGetPlatformProperties(openclPlatformInfo* info);
+/** 
+ * get properties of current device.
+ * @param info pointer to device info structure.
+ */ 
+void openclGetDeviceProperties(openclDeviceInfo* info);
+
+
 typedef void *openclCtx;
+/**
+ * create an empty context
+ * user can use it to create a new context for another platform and device.
+ * 
+ */
 openclCtx openclCtxCreate();
+/**
+ * create a context which inherits another context.
+ * user can simplely use it to attach to a existent context, and
+ * initialize it with new source.
+ * @param c another context.
+ */
 openclCtx openclCtxCreateFrom(openclCtx c);
+/**
+ * destroy a context
+ * @param c context to destroy.
+ */
 void openclCtxDestroy(openclCtx c);
+
+/**
+ * push a context into current work thread
+ * set the context as current context.
+ * @param c context 
+ */
 void openclCtxPushCurrent(openclCtx c);
+/**
+ * peek the current working context
+ * @param c pointer to a returned value.
+ */
 void openclCtxPeekCurrent(openclCtx* c);
+/**
+ * pop current context to the returned value and 
+ * set the current context to the default one.
+ * @param c pointer to a returned value.
+ */
 void openclCtxPopCurrent(openclCtx* c);
+
+void openclSetDevice(int platform,int device);
+
+void openclSetDevice2(openclCtx c,int platform,int device);
 void openclInitFromSource2(openclCtx c,const char* src);
 void openclInitFromFile2(openclCtx c,const char* path);
 int  openclMalloc2(openclCtx c,void** ptr,size_t size);
@@ -162,13 +230,6 @@ void openclSetArgument2(openclCtx c,void* arg, size_t size, size_t idx);
 int  openclConfigureCall2(openclCtx c,size_t localdim[3],size_t globaldim[3]);
 void openclLaunch2(openclCtx c,const char* kernel);
 void openclLaunchGrid2(openclCtx c,const char* kernel,size_t localdim[3],size_t globaldim[3],...);
-
-void openclGetDeviceCount(int* count);
-void openclGetPlatformCount(int* count);
-void openclGetPlatform(int* platform);
-void openclGetDevice(int* device);
-void openclGetPlatformProperties(openclPlatformInfo* info);
-void openclGetDeviceProperties(openclDeviceInfo* info);
 
 void openclGetDeviceCount2(openclCtx openclctx,int* count);
 void openclGetPlatformCount2(openclCtx openclctx,int* count);
