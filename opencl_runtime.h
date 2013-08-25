@@ -178,6 +178,22 @@ void openclGetPlatformProperties(openclPlatformInfo* info);
 void openclGetDeviceProperties(openclDeviceInfo* info);
 
 
+/**
+ * change the current work device
+ * this function should be invoked before resource is allocated.
+ * if program and memory objects are allocated before this funcion, 
+ * they would be released since these object are bound to a context.
+ * as an alternation, user can create lots of context, and use openclSetDevice2
+ * to bind them to different devices.
+ * @param platform 
+ * @param device
+ */
+void openclSetDevice(int platform,int device);
+
+
+
+//---------------------------------------------------------------------------------//
+
 typedef void *openclCtx;
 /**
  * create an empty context
@@ -216,9 +232,6 @@ void openclCtxPeekCurrent(openclCtx* c);
  */
 void openclCtxPopCurrent(openclCtx* c);
 
-void openclSetDevice(int platform,int device);
-
-void openclSetDevice2(openclCtx c,int platform,int device);
 void openclInitFromSource2(openclCtx c,const char* src);
 void openclInitFromFile2(openclCtx c,const char* path);
 int  openclMalloc2(openclCtx c,void** ptr,size_t size);
@@ -237,5 +250,6 @@ void openclGetPlatform2(openclCtx openclctx,int* platform);
 void openclGetDevice2(openclCtx openclctx,int* device);
 void openclGetPlatformProperties2(openclCtx openclctx,openclPlatformInfo* info);
 void openclGetDeviceProperties2(openclCtx openclctx,openclDeviceInfo* info);
+void openclSetDevice2(openclCtx c,int platform,int device);
 
 #endif
