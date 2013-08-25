@@ -1,6 +1,55 @@
 #ifndef OPENCL_RUNTIME_H_
 #  define OPENCL_RUNTIME_H_ 1
+#include <CL/opencl.h>
 
+struct openclPlatformInfo;
+typedef struct openclDeviceInfo{
+   cl_device_id deviceid;
+   cl_uint addressBits;
+   cl_bool isDeviceAvailable;
+   cl_bool isDeviceCompilerAvailable;
+   cl_device_fp_config deviceDoubleFPConfig;
+   cl_bool isLittleEndian;
+   cl_bool isErrorCorrectionSupport;
+   cl_device_exec_capabilities executionCapabilities;
+   char extensions[1024];
+   cl_ulong global_mem_cache_size;
+   cl_uint      global_mem_cache_type;
+   cl_uint      global_mem_cacheline_size;
+   cl_ulong global_mem_size;
+   cl_ulong local_mem_size;
+   cl_device_local_mem_type  local_mem_type;
+   cl_uint maxClockFreq;
+   cl_uint maxComputeUnits;
+   cl_uint maxConstantArgs;
+   cl_ulong maxConstantBufferSize;
+   cl_ulong maxMemAllocSize;
+   size_t maxParamSize;
+   size_t maxWorkGroupSize;
+   size_t maxWorkItemDims;
+   size_t maxWorkItemSizes[3];
+   cl_uint memBaseAddrAlign;
+   cl_uint minDataTypeAlignSize;
+   char deviceName[256];
+   struct openclPlatformInfo* platform;
+   cl_device_type deviceType;
+   char vendor[256];
+   cl_uint vendorID;
+   cl_uint version;
+   char deviceVersion[32];
+   char driverVersion[32];
+}openclDeviceInfo;
+
+typedef struct openclPlatformInfo{
+   cl_platform_id platformid;
+   int deviceCount;
+   openclDeviceInfo* deviceInfos;
+   char platformName[256];
+   char vendorName[256];
+   char profile[256];
+   char version[32];
+   char extensions[1024];
+}openclPlatformInfo;
 
 enum openclMemcpyKind{
    openclMemcpyHostToDevice,
@@ -113,4 +162,19 @@ void openclSetArgument2(openclCtx c,void* arg, size_t size, size_t idx);
 int  openclConfigureCall2(openclCtx c,size_t localdim[3],size_t globaldim[3]);
 void openclLaunch2(openclCtx c,const char* kernel);
 void openclLaunchGrid2(openclCtx c,const char* kernel,size_t localdim[3],size_t globaldim[3],...);
+
+void openclGetDeviceCount(int* count);
+void openclGetPlatformCount(int* count);
+void openclGetPlatform(int* platform);
+void openclGetDevice(int* device);
+void openclGetPlatformProperties(openclPlatformInfo* info);
+void openclGetDeviceProperties(openclDeviceInfo* info);
+
+void openclGetDeviceCount2(openclCtx openclctx,int* count);
+void openclGetPlatformCount2(openclCtx openclctx,int* count);
+void openclGetPlatform2(openclCtx openclctx,int* platform);
+void openclGetDevice2(openclCtx openclctx,int* device);
+void openclGetPlatformProperties2(openclCtx openclctx,openclPlatformInfo* info);
+void openclGetDeviceProperties2(openclCtx openclctx,openclDeviceInfo* info);
+
 #endif

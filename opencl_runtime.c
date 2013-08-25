@@ -6,11 +6,108 @@
 #include <string.h>
 #include "utils/vector.h"
 #include "opencl_runtime.h"
+#include <assert.h>
 typedef struct MemObjRecord{
    void* start;
+   void* memObj;
    size_t len;
 }MemObjRecord;
 struct OpenCLRuntimeAPI;
+
+static void printLastError(int _err);
+
+typedef struct openclDriverInfos{
+   int platform_count;
+   openclPlatformInfo* platform_infos; 
+}openclDriverInfos;
+static openclDriverInfos* openclDriverInfosPtr;
+static openclDriverInfos openclDriverInfosInstance;
+
+static void __openclSafeCall(int err, const char* expr, const char* file, int line){
+   if(err != 0){
+      fprintf(stderr,"Error %d occurrs at %s %d: %s \n",err,file,line,expr);
+      printLastError(err);
+      exit(0);
+   }
+}
+#define OPENCLSAFECALL(EXPR) __openclSafeCall((EXPR),#EXPR,__FILE__,__LINE__)
+
+static void openclInitDeviceInfo(openclDeviceInfo* deviceInfo, cl_device_id deviceid,openclPlatformInfo* platform){
+   deviceInfo->deviceid = deviceid;
+   deviceInfo->platform = platform;
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_ADDRESS_BITS,sizeof(cl_uint),&deviceInfo->addressBits,NULL) );
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_AVAILABLE,sizeof(cl_bool),&deviceInfo->isDeviceAvailable,NULL) );
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_COMPILER_AVAILABLE,sizeof(cl_bool),&deviceInfo->isDeviceCompilerAvailable,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_DOUBLE_FP_CONFIG,sizeof(cl_device_fp_config),&deviceInfo->deviceDoubleFPConfig,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_ENDIAN_LITTLE,sizeof(cl_bool),&deviceInfo->isLittleEndian,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_ERROR_CORRECTION_SUPPORT,sizeof(cl_bool),&deviceInfo->isErrorCorrectionSupport,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_EXECUTION_CAPABILITIES,sizeof(cl_device_exec_capabilities),&deviceInfo->executionCapabilities,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_EXTENSIONS,1024,&deviceInfo->extensions,NULL) );    
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,sizeof(cl_ulong),&deviceInfo->global_mem_cache_size,NULL) );    
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_GLOBAL_MEM_CACHE_TYPE,sizeof(cl_uint),&deviceInfo->global_mem_cache_type,NULL) );    
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,sizeof(cl_uint),&deviceInfo->global_mem_cacheline_size,NULL) );    
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),&deviceInfo->global_mem_size,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),&deviceInfo->local_mem_size,NULL) );    
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_LOCAL_MEM_TYPE,sizeof(cl_uint),&deviceInfo->local_mem_type,NULL) );    
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),&deviceInfo->maxClockFreq,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),&deviceInfo->maxComputeUnits,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_CONSTANT_ARGS,sizeof(cl_uint),&deviceInfo->maxConstantArgs,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),&deviceInfo->maxConstantBufferSize,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_MEM_ALLOC_SIZE,sizeof(cl_ulong),&deviceInfo->maxMemAllocSize,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_PARAMETER_SIZE,sizeof(size_t),&deviceInfo->maxParamSize,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_WORK_GROUP_SIZE,sizeof(size_t),&deviceInfo->maxWorkGroupSize,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS,sizeof(size_t),&deviceInfo->maxWorkItemDims,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MAX_WORK_ITEM_SIZES,sizeof(size_t)*3,&deviceInfo->maxWorkItemSizes,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MEM_BASE_ADDR_ALIGN,sizeof(cl_uint),&deviceInfo->memBaseAddrAlign,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE,sizeof(cl_uint),&deviceInfo->minDataTypeAlignSize,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_NAME,256,deviceInfo->deviceName,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_TYPE,sizeof(cl_device_type),&deviceInfo->deviceType,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_VENDOR,256,deviceInfo->vendor,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_VENDOR_ID,sizeof(cl_uint),&deviceInfo->vendorID,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DEVICE_VERSION,32,deviceInfo->deviceVersion,NULL) ); 
+   OPENCLSAFECALL( clGetDeviceInfo(deviceid,CL_DRIVER_VERSION,32,deviceInfo->driverVersion,NULL) ); 
+}
+
+
+static void openclInitPlatformInfo(openclPlatformInfo* platforminfo, cl_platform_id platformid){
+   cl_device_id* deviceids;
+   int i;
+   platforminfo->platformid = platformid;
+   OPENCLSAFECALL( clGetDeviceIDs(platformid,CL_DEVICE_TYPE_ALL,0,NULL,&platforminfo->deviceCount) ); 
+
+   deviceids = (cl_device_id*)malloc(sizeof(cl_device_id)*platforminfo->deviceCount);
+   OPENCLSAFECALL( clGetDeviceIDs(platformid,CL_DEVICE_TYPE_ALL,platforminfo->deviceCount,deviceids,NULL) ); 
+   OPENCLSAFECALL( clGetPlatformInfo(platformid,CL_PLATFORM_PROFILE,256,platforminfo->profile,NULL) );
+   OPENCLSAFECALL( clGetPlatformInfo(platformid,CL_PLATFORM_NAME,256,platforminfo->platformName,NULL) );
+   OPENCLSAFECALL( clGetPlatformInfo(platformid,CL_PLATFORM_VENDOR,256,platforminfo->vendorName,NULL) );
+   OPENCLSAFECALL( clGetPlatformInfo(platformid,CL_PLATFORM_VERSION,32,platforminfo->version,NULL) );
+   OPENCLSAFECALL( clGetPlatformInfo(platformid,CL_PLATFORM_EXTENSIONS,1024,platforminfo->extensions,NULL) );
+   platforminfo->deviceInfos = (openclDeviceInfo*)malloc(sizeof(openclDeviceInfo)*platforminfo->deviceCount); 
+   for(i=0; i<platforminfo->deviceCount; ++i){
+      openclInitDeviceInfo(&platforminfo->deviceInfos[i],deviceids[i],platforminfo);
+   }
+
+   free(deviceids);
+}
+
+static void openclInitialDriverInfos(openclDriverInfos* driverInfos){
+   cl_platform_id* platformids;
+   int i;
+   OPENCLSAFECALL( clGetPlatformIDs(0,NULL,&driverInfos->platform_count) );
+   platformids = (cl_platform_id*)malloc(sizeof(cl_platform_id)*driverInfos->platform_count);
+   OPENCLSAFECALL( clGetPlatformIDs(driverInfos->platform_count,platformids,NULL) );
+
+   driverInfos->platform_infos = (openclPlatformInfo*)malloc(sizeof(openclPlatformInfo)*driverInfos->platform_count);
+   for(i=0; i<driverInfos->platform_count; ++i){
+      openclInitPlatformInfo(&driverInfos->platform_infos[i],platformids[i]);
+   }
+
+   free(platformids);
+   openclDriverInfosPtr = driverInfos;
+}
+
+
+
 struct OpenCLRuntimeAPI{
   char* launchFnc;
   size_t workdim;
@@ -22,6 +119,8 @@ struct OpenCLRuntimeAPI{
      size_t argIdxes[ 256 ];
      size_t argIdx;
   } setupArg;
+  int platformidx;
+  int deviceidx;
   cl_platform_id ompclPlatformID;
   cl_device_id ompclDeviceID;
   cl_context ompclContext;
@@ -33,14 +132,13 @@ struct OpenCLRuntimeAPI{
 };
 
 typedef struct OpenCLRuntimeAPI OpenCLRuntimeAPI;
-static Vector* memObjList;
 
 static Vector* mem_obj_list_get(OpenCLRuntimeAPI* api);
 static void mem_obj_list_clear(OpenCLRuntimeAPI* api);
 static void mem_obj_list_remove(OpenCLRuntimeAPI* api,void* key);
 static MemObjRecord* mem_obj_list_get_hit(OpenCLRuntimeAPI* api,void* key);
 
-static MemObjRecord* mem_obj_new(void* s,size_t l);
+static MemObjRecord* mem_obj_new(void* s,void* m,size_t l);
 
 static Vector* mem_obj_list_get(OpenCLRuntimeAPI* api){
    if(api->memObjList == NULL){
@@ -52,7 +150,8 @@ static Vector* mem_obj_list_get(OpenCLRuntimeAPI* api){
 
 static void mem_obj_delete(MemObjRecord* o){
    if(o != NULL){
-      clReleaseMemObject((cl_mem)o->start);
+      clReleaseMemObject((cl_mem)o->memObj);
+      free(o->start);
       free(o);
    }
 }
@@ -72,13 +171,15 @@ static void mem_obj_list_remove(OpenCLRuntimeAPI* api,void* key){
     int i,size;
     vec = mem_obj_list_get(api);
     size = vector_size(vec);
+    MemObjRecord* o;
     for(i=0; i<size; ++i){
-       MemObjRecord* o = (MemObjRecord*)vector_at(vec,i);
+       o = (MemObjRecord*)vector_at(vec,i);
        if(o->start == key){
-          break;
+            break;
        }
     }
     if(i < size){
+       mem_obj_delete(o);
        vector_erase(vec,i);
     }
 }
@@ -100,10 +201,11 @@ static MemObjRecord* mem_obj_list_get_hit(OpenCLRuntimeAPI* api,void* key){
     return NULL;
 }
 
-static MemObjRecord* mem_obj_new(void* s,size_t l){
+static MemObjRecord* mem_obj_new(void* s,void* p,size_t l){
    MemObjRecord* ret;
    ret = (MemObjRecord*)malloc(sizeof(MemObjRecord));
    ret->start = s;
+   ret->memObj = p;
    ret->len = l;
    return ret;
 }
@@ -116,7 +218,7 @@ static int mem_obj_CL_INVALID_MEM_OBJECT_handler(openclCtx openclctx,int _err,co
       }
       size_t offset = ((size_t)dst) - (size_t)o->start;
       void* shiftPtr;
-      openclShiftPointer(&shiftPtr,o->start,offset);
+      openclShiftPointer(&shiftPtr,o->memObj,offset);
       *ptr = shiftPtr;
       return 1; //handled
    }    
@@ -129,7 +231,7 @@ static int mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(
    if(_err == CL_INVALID_MEM_OBJECT){
       MemObjRecord* o = mem_obj_list_get_hit((OpenCLRuntimeAPI*)openclctx,(void*)dst);
       size_t offset = ((size_t)dst) - (size_t)o->start;
-      *ptr = o->start;
+      *ptr = o->memObj;
       *r_offset = offset;
       return 1; //handled
    }    
@@ -313,9 +415,8 @@ static cl_program OMPCLCompileProgram(const char* srcCode,cl_device_id* devid,cl
 
 }
 static void OMPCLInit(
-                cl_device_type type,
-                cl_platform_id* platformid,
-                cl_device_id* devid,
+                cl_platform_id platformid,
+                cl_device_id devid,
                 cl_context* ctx,
                 cl_command_queue* cmdqueue,
                 const char* srcCode,
@@ -329,24 +430,24 @@ static void OMPCLInit(
 
    if(*compiled != 1){
       *compiled = 1;
-      if(!*platformid){
+      /*if(!*platformid){
          OMPCLGetPlatformID(platformid,type);
-      }
+      }*/
       //printf("after get platform id OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
-      if(!*devid){
+      /*if(!*devid){
          OMPCLGetDeviceID(devid,*platformid,type);
-      }
+      }*/
       //printf("after get dev id OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
       if(!*ctx){
-         OMPCLCreateContext(ctx,*devid);
+         OMPCLCreateContext(ctx,devid);
       }
       //printf("after get ctx OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
       if(!*program){
-         *program = OMPCLCompileProgram(srcCode,devid,*ctx);
+         *program = OMPCLCompileProgram(srcCode,&devid,*ctx);
       }
       //printf("after get program OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
       if(!*cmdqueue){
-         OMPCLCreateCommandQueue(cmdqueue,*ctx,*devid);
+         OMPCLCreateCommandQueue(cmdqueue,*ctx,devid);
       }
       //printf("after get cmdqueue OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
 
@@ -370,8 +471,6 @@ static void OMPCLCreateBuffer(cl_mem* mem,cl_context ctx,size_t size){
 #endif
 }
 
-
-
 static OpenCLRuntimeAPI openclRuntime;
 static OpenCLRuntimeAPI* openclRuntimeCurrent = &openclRuntime;
  
@@ -390,15 +489,45 @@ static void openclRuntimeReleaseOnExit(){
 void openclInitFromSource(const char* src){
    openclInitFromSource2((openclCtx)openclRuntimeCurrent,src);
 }
+
+static int openclGetDeviceByType(cl_device_type type, OpenCLRuntimeAPI* api){
+   int i,j;
+   for(i=0; i<openclDriverInfosPtr->platform_count;++i){
+      for(j=0; j<openclDriverInfosPtr->platform_infos[i].deviceCount; ++j){
+          if(openclDriverInfosPtr->platform_infos[i].deviceInfos[j].deviceType == type){
+             api->platformidx = i; 
+             api->deviceidx = j; 
+             api->ompclPlatformID =(cl_platform_id) openclDriverInfosPtr->platform_infos[i].platformid;
+             api->ompclDeviceID = (cl_device_id) openclDriverInfosPtr->platform_infos[i].deviceInfos[j].deviceid;
+             return 1;
+          }
+      }
+   }
+   return 0;
+}
 void openclInitFromSource2(openclCtx openclctx,const char* src){
-   OMPCLInit(CL_DEVICE_TYPE_GPU,
-      &((OpenCLRuntimeAPI*)openclctx)->ompclPlatformID,
-      &((OpenCLRuntimeAPI*)openclctx)->ompclDeviceID,
+   int i,j;
+   if(!openclDriverInfosPtr){
+      openclInitialDriverInfos(&openclDriverInfosInstance);
+   }
+   if(!openclGetDeviceByType(CL_DEVICE_TYPE_GPU,(OpenCLRuntimeAPI*)openclctx)){
+      fprintf(stderr,"No capable GPU found, try CPU\n");
+      if(!openclGetDeviceByType(CL_DEVICE_TYPE_CPU,(OpenCLRuntimeAPI*)openclctx)){
+          fprintf(stderr,"No capable CPU found, try ALL\n");    
+          if(!openclGetDeviceByType(CL_DEVICE_TYPE_ALL,(OpenCLRuntimeAPI*)openclctx)){
+             fprintf(stderr,"No capable Device found, uncaught error, exit\n");    
+             exit(0);
+          }
+      }
+   }
+   OMPCLInit(
+      ((OpenCLRuntimeAPI*)openclctx)->ompclPlatformID,
+      ((OpenCLRuntimeAPI*)openclctx)->ompclDeviceID,
       &((OpenCLRuntimeAPI*)openclctx)->ompclContext, 
       &((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,
       src, 
       &((OpenCLRuntimeAPI*)openclctx)->ompclProgram, 
-      &((OpenCLRuntimeAPI*)openclctx)->ompclCompiled 
+      &((OpenCLRuntimeAPI*)openclctx)->ompclCompiled
    );
    atexit(openclRuntimeReleaseOnExit);
    ((OpenCLRuntimeAPI*)openclctx)->memObjList = NULL;
@@ -450,12 +579,14 @@ int openclMalloc(void** ptr,size_t size){
    return openclMalloc2((openclCtx)openclRuntimeCurrent,ptr,size);
 }
 int openclMalloc2(openclCtx openclctx,void** ptr,size_t size){
+    void* shadow;
     cl_mem ret;
     int err;
     if(!openclCheckInited(openclctx)) return -1;
+    shadow = (void*)malloc(size);
     ret = clCreateBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclContext, CL_MEM_READ_WRITE, size, NULL,&err);
-    vector_push_back(mem_obj_list_get((OpenCLRuntimeAPI*)openclctx),mem_obj_new((void*)ret,size));
-    *ptr = (void*)ret;
+    vector_push_back(mem_obj_list_get((OpenCLRuntimeAPI*)openclctx),mem_obj_new((void*)shadow,ret,size));
+    *ptr = (void*)shadow;
     return err;
 }
 int openclMemcpy(void* dst, const void* src, size_t size, openclMemcpyKind kind){
@@ -475,7 +606,7 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
           void* dstPtr;
           size_t offset;
           mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,dst,&dstPtr,&offset);
-          err = clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dst,CL_TRUE,0,size,src,0,0,0);
+          err = clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dstPtr,CL_TRUE,offset,size,src,0,0,0);
 
           return err;
       }
@@ -485,7 +616,7 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
           void* srcPtr;
           size_t offset;
           mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,src,&srcPtr,&offset);
-          err = clEnqueueReadBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)src,CL_TRUE,0,size,dst,0,0,0);
+          err = clEnqueueReadBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)srcPtr,CL_TRUE,offset,size,dst,0,0,0);
           return err;
       }
       case openclMemcpyHostToHost:
@@ -502,7 +633,7 @@ int openclMemcpy2(openclCtx openclctx,void* dst, const void* src, size_t size, o
           size_t srcOffset;
           mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,src,&srcPtr,&srcOffset);
           mem_obj_CL_INVALID_MEM_OBJECT_handler_with_orig_and_offset(openclctx,CL_INVALID_MEM_OBJECT,dst,&dstPtr,&dstOffset);
-          err = clEnqueueCopyBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)src,(cl_mem)dst,0,0,size,0,0,0);
+          err = clEnqueueCopyBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)srcPtr,(cl_mem)dstPtr,srcOffset,dstOffset,size,0,0,0);
           return err;
       }
    }
@@ -526,7 +657,7 @@ int  openclMemset2(openclCtx openclctx,void* dstPtr,int bytevalue, size_t size){
        size -= 65536;
        dstOffset += 65536;
     }
-    err = clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dstPtrReal,CL_TRUE,dstOffset,size,bytes64k,0,0,0);      
+    OPENCLSAFECALL( clEnqueueWriteBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclCommandQueue,(cl_mem)dstPtrReal,CL_TRUE,dstOffset,size,bytes64k,0,0,0) );
     return err;
 }
 
@@ -537,7 +668,7 @@ int openclFree(void* ptr){
 int openclFree2(openclCtx openclctx,void* ptr){
    if(!openclCheckInited(openclctx)) return -1;
    mem_obj_list_remove((OpenCLRuntimeAPI*)openclctx,ptr);
-   return clReleaseMemObject((cl_mem)ptr);
+   return 0;//clReleaseMemObject((cl_mem)ptr);
 }
 int openclThreadSynchronize(){
    return openclThreadSynchronize2((openclCtx)openclRuntimeCurrent);
@@ -605,7 +736,7 @@ static void openclLaunchKernelObject2(openclCtx openclctx,cl_kernel kernel,const
           *(void**)((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[argCfg]
       );*/
       if(err != 0){
-         fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler\n");
+         //fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler\n");
          if(err == CL_INVALID_MEM_OBJECT){
              void* ptr;
              
@@ -615,7 +746,7 @@ static void openclLaunchKernelObject2(openclCtx openclctx,cl_kernel kernel,const
                  *((void**)((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[argCfg]),
                  &ptr
              );
-             fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done\n");
+             //fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done, memObj is %x\n",ptr);
              vector_push_back(vecReleaseList,ptr);
              err = clSetKernelArg(
                kernel,
@@ -650,7 +781,7 @@ static void openclLaunchKernelObject2(openclCtx openclctx,cl_kernel kernel,const
    }
    if(!vector_empty(vecReleaseList))
    {
-      vector_foreach(vecReleaseList,vec_release_list_releaseMemObj);
+//      vector_foreach(vecReleaseList,vec_release_list_releaseMemObj);
       vector_delete(vecReleaseList);
    }
 }
@@ -807,5 +938,45 @@ void openclCtxPopCurrent(openclCtx* c){
 
 void openclCtxPeekCurrent(openclCtx* c){
    *c = (openclCtx)openclRuntimeCurrent; 
+}
+
+void openclGetDeviceCount(int* count){
+   openclGetDeviceCount2((openclCtx)openclRuntimeCurrent,count);
+}
+void openclGetPlatformCount(int* count){
+   openclGetPlatformCount2((openclCtx)openclRuntimeCurrent,count);
+}
+void openclGetPlatform(int* platform){
+   openclGetPlatform2((openclCtx)openclRuntimeCurrent,platform);
+}
+void openclGetDevice(int* device){
+   openclGetDevice2((openclCtx)openclRuntimeCurrent,device);
+}
+void openclGetPlatformProperties(openclPlatformInfo* info){
+   openclGetPlatformProperties2((openclCtx)openclRuntimeCurrent,info);
+}
+void openclGetDeviceProperties(openclDeviceInfo* info){
+   openclGetDeviceProperties2((openclCtx)openclRuntimeCurrent,info);
+}
+
+void openclGetDeviceCount2(openclCtx openclctx,int* count){
+   *count =  openclDriverInfosPtr->platform_infos[((OpenCLRuntimeAPI*)openclctx)->platformidx].deviceCount;
+}
+void openclGetPlatformCount2(openclCtx openclctx,int* count){
+   *count =  openclDriverInfosPtr->platform_count;
+}
+void openclGetPlatform2(openclCtx openclctx,int* platform){
+   *platform =  ((OpenCLRuntimeAPI*)openclctx)->platformidx;
+}
+void openclGetDevice2(openclCtx openclctx,int* device){
+   *device =  ((OpenCLRuntimeAPI*)openclctx)->deviceidx;
+}
+void openclGetPlatformProperties2(openclCtx openclctx,openclPlatformInfo* info){
+   memcpy(info, &openclDriverInfosPtr->platform_infos[((OpenCLRuntimeAPI*)openclctx)->platformidx],sizeof(openclPlatformInfo));
+}
+void openclGetDeviceProperties2(openclCtx openclctx,openclDeviceInfo* info){
+   unsigned platformidx = ((OpenCLRuntimeAPI*)openclctx)->platformidx; 
+   unsigned deviceidx = ((OpenCLRuntimeAPI*)openclctx)->deviceidx;
+   memcpy(info, &openclDriverInfosPtr->platform_infos[platformidx].deviceInfos[deviceidx],sizeof(openclDeviceInfo));
 }
 
