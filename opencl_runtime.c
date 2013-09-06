@@ -7,7 +7,7 @@
 #include "utils/vector.h"
 #include "opencl_runtime.h"
 #include <assert.h>
-#define __ompclDebug 1
+//#define __ompclDebug 1
 typedef struct MemObjRecord{
    void* start;
    void* memObj;
@@ -440,7 +440,7 @@ static void OMPCLInit(
       }*/
       //printf("after get dev id OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
       if(!*ctx){
-         fprintf(stderr,"create context\n");
+         //fprintf(stderr,"create context\n");
          OMPCLCreateContext(ctx,devid);
       }
       //printf("after get ctx OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
@@ -729,9 +729,11 @@ int openclConfigureCall2(openclCtx openclctx,size_t localdim[3],size_t globaldim
 static void vec_release_list_releaseMemObj(void* o){
    clReleaseMemObject((cl_mem)o);
 }
-
+#if 0
 #define DEBUGSYM fprintf(stderr,"%s %d \n",__FUNCTION__,__LINE__);
-
+#else
+#define DEBUGSYM
+#endif
 static void openclLaunchKernelObject2(openclCtx openclctx,cl_kernel kernel,const char* kernelName){
    int argCfg;
    int err;
@@ -760,7 +762,7 @@ DEBUGSYM
                  *((void**)((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[argCfg]),
                  &ptr
              );
-             fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done, memObj is %x\n",ptr);
+             fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done, memObj is %x\n",(unsigned)ptr);
              vector_push_back(vecReleaseList,ptr);
              err = clSetKernelArg(
                kernel,

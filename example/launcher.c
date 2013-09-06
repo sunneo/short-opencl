@@ -22,7 +22,7 @@ __kernel void getKernelPtrAddr(unsigned __global* output,unsigned __global* inpu
       openclInitFromSource2(ctx,__kernel_ptr_getter);
    }
    openclMalloc2(ctx,(void**)&paddr,sizeof(size_t));
-   //openclLaunchGrid2(ctx,"getKernelPtrAddr",localdim,globaldim,paddr,clmemaddr);
+   openclLaunchGrid2(ctx,"getKernelPtrAddr",localdim,globaldim,paddr,clmemaddr);
    openclMemcpy2(ctx,&ret,paddr,sizeof(size_t),openclMemcpyDeviceToHost);
    openclFree2(ctx,paddr);
    return ret;
