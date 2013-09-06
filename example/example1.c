@@ -27,6 +27,12 @@ __kernel void vecAdd(int __global* a, int __global* b, int __global* c,unsigned 
    openclMalloc((void**)&dA,sizeof(int)*size);
    openclMalloc((void**)&dB,sizeof(int)*size);
    openclMalloc((void**)&dC,sizeof(int)*size);
+//   openclMemset(dA,0,sizeof(int)*size);
+//   openclMemset(dB,0,sizeof(int)*size);
+   openclMemset(dC,0,sizeof(int)*size);
+
+
+
    openclMemcpy(dA,hA,sizeof(int)*size,openclMemcpyHostToDevice);
    openclMemcpy(dB,hB,sizeof(int)*size,openclMemcpyHostToDevice);
    openclLaunchGrid("vecAdd",dimLocal,dimGlobal,dA,dB,dC,size);

@@ -1,8 +1,9 @@
-
 typedef struct StructWithoutPointerButAddress{
-   size_t addr0;
-   size_t addr1;
+   unsigned addr0;
+   unsigned addr1;
 }StructWithoutPointerButAddress;
+
+
 
 __kernel void kernelFnc(
     int __global* gstore,
@@ -11,6 +12,7 @@ __kernel void kernelFnc(
     int offsetval,
     StructWithoutPointerButAddress __global* strPtr)
 {
+   
    unsigned __local store[4];
    if(get_local_id(0) == 0){
       store[0] = (unsigned int)(startptr+offsetval);
@@ -23,4 +25,6 @@ __kernel void kernelFnc(
 //      gstore[get_local_id(0) ] = store[get_local_id(0)];
       ((int __global*)strPtr->addr0)[get_local_id(0) ] = store[get_local_id(0)];
    }
+
 }
+
