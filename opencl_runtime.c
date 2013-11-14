@@ -431,6 +431,13 @@ static void OMPCLInit(
 
    if(*compiled != 1){
       *compiled = 1;
+      int isX86 = 1;
+      {
+         int addressBits = sizeof(size_t)*8;
+         if(addressBits != 32){
+            isX86 = 0;
+         }
+      }
       /*if(!*platformid){
          OMPCLGetPlatformID(platformid,type);
       }*/
@@ -445,7 +452,20 @@ static void OMPCLInit(
       }
       //printf("after get ctx OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
       if(!*program){
-         *program = OMPCLCompileProgram(srcCode,&devid,*ctx);
+         if(isX86){
+            *program = OMPCLCompileProgram(srcCode,&devid,*ctx);
+         }
+         else{
+            const char* padding = "#undef size_t \n"
+                                  "#define size_t ulong \n";
+            size_t len_padding = strlen(padding);
+            size_t len_srcCode = strlen(srcCode);
+            char* dupsrc = (char*)malloc(len_padding+len_srcCode+1);
+            memcpy(dupsrc,padding,len_padding);
+            memcpy(dupsrc+len_padding,srcCode,len_srcCode);
+            *program = OMPCLCompileProgram(dupsrc,&devid,*ctx);
+            free(dupsrc);          
+         }
       }
       //printf("after get program OMPCLInit::output(%d,platformid=%x,devid=%x,ctx=%x,cmdqueue=%x,program=%x)\n", type,*platformid,*devid,*ctx,*cmdqueue,*program);
       if(!*cmdqueue){
@@ -693,13 +713,15 @@ void openclSetArgument(void* arg, size_t size, size_t index){
    return openclSetArgument2((openclCtx)openclRuntimeCurrent,arg,size,index);
 }
 void openclSetArgument2(openclCtx openclctx,void* arg, size_t size, size_t index){
+   void* argCopy;
    if(!openclCheckInited(openclctx)) return ;
    if(((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx >= 256){
       fprintf(stderr,"Count of Argument exceeds 256\n");
       exit(0);
    }
-   ((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx]=(void*)malloc(size);
-   memcpy(((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx],arg,size);
+   argCopy = (void*)malloc(size);
+   memcpy(argCopy,arg,size);
+   ((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx]=argCopy;
    ((OpenCLRuntimeAPI*)openclctx)->setupArg.argSize[((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx]=size;
    ((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdxes[((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx]=index;
    ++((OpenCLRuntimeAPI*)openclctx)->setupArg.argIdx;
@@ -762,7 +784,7 @@ DEBUGSYM
                  *((void**)((OpenCLRuntimeAPI*)openclctx)->setupArg.argList[argCfg]),
                  &ptr
              );
-             fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done, memObj is %x\n",(unsigned)ptr);
+             fprintf(stderr,"occur mem_obj_CL_INVALID_MEM_OBJECT_handler done, memObj is %zx\n",(size_t)ptr);
              vector_push_back(vecReleaseList,ptr);
              err = clSetKernelArg(
                kernel,
