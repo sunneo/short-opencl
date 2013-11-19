@@ -3,6 +3,7 @@
 i.e in example/VectorAdd.c
 
 kernel function can be invoked by openclLaunchKernel simply.
+
     openclLaunchKernel("VectorAdd",dimglobal,dimlocal,d_a,d_b,d_c,iNumElements);
 
 which would be expanded into:
