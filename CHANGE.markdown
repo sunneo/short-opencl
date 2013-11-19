@@ -6,6 +6,7 @@ kernel function can be invoked by openclLaunchKernel simply.
     openclLaunchKernel("VectorAdd",dimglobal,dimlocal,d_a,d_b,d_c,iNumElements);
 
 which would be expanded into:
+<pre>
     {                                                               
         int __openclkernelLaunchNarg = 0;                           
         openclLaunchGridConfigureCall(dimglobal,dimlocal);      
@@ -15,7 +16,7 @@ which would be expanded into:
         openclLaunchGridSetArg(&iNumElements,sizeof(iNumElements),__openclkernelLaunchNarg++);               
         openclLaunch("VectorAdd");
     }
-
+</pre>
 
 
 
