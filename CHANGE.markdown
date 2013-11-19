@@ -1,6 +1,6 @@
 
 * 2013-11-20 add macros to support varidiac argument
-i.e in example/VectorAdd.c
+i.e in [example/VectorAdd.c](https://github.com/sunneo/short-opencl/blob/master/example/VectorAdd.c "Simplifed VectorAdd")
 
 kernel function can be invoked by openclLaunchKernel simply.
 
