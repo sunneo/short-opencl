@@ -1,5 +1,5 @@
 CC:=gcc
-EXAMPLE:=launcher example
+EXAMPLE:=launcher example sizeT VectorAdd
 LDFLAGS+=-L./  -lopenclrt -lOpenCL 
 CFLAGS+=  -I../ -I/usr/local/cuda/include
 
@@ -11,6 +11,11 @@ example: example1.c
 launcher: launcher.c
 	$(CC) -o launcher launcher.c $(LDFLAGS) $(CFLAGS)
 
+VectorAdd: VectorAdd.c
+	$(CC) -o VectorAdd VectorAdd.c $(LDFLAGS) $(CFLAGS)
+
+sizeT: sizeT.c
+	$(CC) -o sizeT sizeT.c $(LDFLAGS) $(CFLAGS)
 
 
 clean:
