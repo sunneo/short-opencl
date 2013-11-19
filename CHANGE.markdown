@@ -1,3 +1,25 @@
+
+* 2013-11-20 add macros to support varidiac argument
+i.e in example/VectorAdd.c
+
+kernel function can be invoked by openclLaunchKernel simply.
+    openclLaunchKernel("VectorAdd",dimglobal,dimlocal,d_a,d_b,d_c,iNumElements);
+
+which would be expanded into:
+    {                                                               
+        int __openclkernelLaunchNarg = 0;                           
+        openclLaunchGridConfigureCall(dimglobal,dimlocal);      
+        openclLaunchGridSetArg(&da,sizeof(da),__openclkernelLaunchNarg++);               
+        openclLaunchGridSetArg(&db,sizeof(db),__openclkernelLaunchNarg++);               
+        openclLaunchGridSetArg(&dc,sizeof(dc),__openclkernelLaunchNarg++);               
+        openclLaunchGridSetArg(&iNumElements,sizeof(iNumElements),__openclkernelLaunchNarg++);               
+        openclLaunch("VectorAdd");
+    }
+
+
+
+
+
 * 2013-08-16 support offset to pointer(memory object) by runtime.
 * 2013-08-16 change behaviors of openclLaunchGrid, parameters are passed by values.
 
