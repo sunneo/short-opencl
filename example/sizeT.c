@@ -10,10 +10,13 @@ int main(){
    int i;
    openclInitFromFile("sizeT.cl");
    openclMalloc((void**)&sizeptr,sizeof(size_t)*size);
+/*   
    openclSetArgument(&sizeptr,sizeof(size_t*),0);
    openclSetArgument(&size,sizeof(int),1);
    openclConfigureCall(dimlocal,dimglobal);
    openclLaunch("kernelfnc");
+*/
+   openclLaunchKernel("kernelfnc",dimlocal,dimglobal,sizeptr,size);
    openclThreadSynchronize();
    sizeptr_h = (size_t*)malloc(sizeof(size_t)*size);
    openclMemcpy(sizeptr_h,sizeptr,sizeof(size_t)*size, openclMemcpyDeviceToHost);

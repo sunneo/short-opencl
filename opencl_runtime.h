@@ -2,6 +2,26 @@
 #  define OPENCL_RUNTIME_H_ 1
 #include <CL/opencl.h>
 
+#define STRINGIZE(arg)  STRINGIZE1(arg)
+#define STRINGIZE1(arg) STRINGIZE2(arg)
+#define STRINGIZE2(arg) #arg
+
+#define CONCATENATE(arg1, arg2)   CONCATENATE1(arg1, arg2)
+#define CONCATENATE1(arg1, arg2)  CONCATENATE2(arg1, arg2)
+#define CONCATENATE2(arg1, arg2)  arg1##arg2
+#include "foreach_macro.h"
+#define openclLaunchGridConfigureCall(GlobalDim,LocalDim) openclConfigureCall((LocalDim),(GlobalDim));
+#define openclLaunchGridSetArg_(DUMMY,PARAM) openclSetArgument(&(PARAM),sizeof((PARAM)), __openclkernelLaunchNarg++);
+#define openclLaunchGridSetArg(PARAM) openclLaunchGridSetArg_(0,PARAM)
+#define openclLaunchKernel(KernelName,GlobalDim,LocalDim,...)         \
+    {                                                               \
+        int __openclkernelLaunchNarg = 0;                           \
+        openclLaunchGridConfigureCall((GlobalDim),(LocalDim));      \
+        FOR_EACH(openclLaunchGridSetArg,__VA_ARGS__);               \
+        openclLaunch((KernelName));                                 \
+    }
+
+
 struct openclPlatformInfo;
 typedef struct openclDeviceInfo{
    cl_device_id deviceid;

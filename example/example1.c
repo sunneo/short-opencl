@@ -40,7 +40,7 @@ __kernel void vecAdd(int __global* a, int __global* b, int __global* c,unsigned 
    
    openclMemcpy(hC,dC,sizeof(int)*size,openclMemcpyDeviceToHost);
    for(i=0; i<size; ++i){
-      printf("%d",hC[i]);
+	  printf("%d =%d+%d\n",hC[i],hA[i],hB[i]);
    }
    printf("\n");
 

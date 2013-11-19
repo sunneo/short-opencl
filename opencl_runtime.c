@@ -616,6 +616,9 @@ int openclMalloc2(openclCtx openclctx,void** ptr,size_t size){
     if(!openclCheckInited(openclctx)) return -1;
 //    shadow = (void*)malloc(size);
     ret = clCreateBuffer(((OpenCLRuntimeAPI*)openclctx)->ompclContext, CL_MEM_READ_WRITE, size, NULL,&err);
+    if(err !=0){
+       printLastError(err);
+    }
 //    fprintf(stderr,"malloc %x:%x\n",(unsigned)ret,(unsigned)shadow);
     vector_push_back(mem_obj_list_get((OpenCLRuntimeAPI*)openclctx),mem_obj_new((void*)ret,ret,size));
     *ptr = (void*)ret;
