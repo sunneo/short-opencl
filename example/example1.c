@@ -5,7 +5,7 @@
 int main(){
    int size = 1024;
    int i;
-   int dimLocal[3]={256,1,1};
+   int dimLocal[3]={4,1,1};
    int dimGlobal[3]={1024,1,1};
    const char* src = "\n\
 __kernel void vecAdd(int __global* a, int __global* b, int __global* c,unsigned size){\n\
@@ -41,14 +41,6 @@ __kernel void vecAdd(int __global* a, int __global* b, int __global* c,unsigned 
    openclMemcpy(hC,dC,sizeof(int)*size,openclMemcpyDeviceToHost);
    for(i=0; i<size; ++i){
 	  printf("%d =%d+%d\n",hC[i],hA[i],hB[i]);
-   }
-   printf("\n");
-
-   openclMemset(dC,0,sizeof(int)*size);
-   openclMemcpy(hC,dC,sizeof(int)*size,openclMemcpyDeviceToHost);
-
-   for(i=0; i<size; ++i){
-      printf("%d",hC[i]);
    }
    printf("\n");
 
